@@ -95,7 +95,12 @@ if (-not (Test-Path "$Tool\renderer\node_modules\@remotion\cli")) {
     robocopy "$ToolRepo\renderer\node_modules" "$Tool\renderer\node_modules" /E /NFL /NDL /NJH /NJS /NP | Out-Null
     Push-Location "$Tool\renderer"
     $env:PATH = "$Node;$env:PATH"
-    & "$Node\npm.cmd" prune --omit=dev --no-audit --no-fund
+    # packages the renderer's package.json lists but its source never imports: half the size, and butterchurn-presets
+    # alone has 220-character file names that break Windows' 260-character path limit once installed
+    & "$Node\npm.cmd" uninstall --no-audit --no-fund butterchurn butterchurn-presets gl-transitions lottie-web `
+        @remotion/lottie animejs gsap @vfx-js/core postprocessing @react-three/postprocessing @react-three/drei `
+        @remotion/transitions @remotion/captions @remotion/google-fonts
+    & "$Node\npm.cmd" prune --omit=dev --no-audit --no-fund  # (uninstall re-adds dev packages)
     & "$Node\npx.cmd" remotion browser ensure
     Pop-Location
 }

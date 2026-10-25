@@ -69,6 +69,19 @@ Type: filesandordirs; Name: "{app}\tool\output"
 Type: filesandordirs; Name: "{app}\python\Lib\site-packages\__pycache__"
 
 [Code]
+// the deepest file (inside Remotion's headless Chrome) is ~160 characters below the install folder, and Windows
+// paths stop at 260: keep the folder short
+function NextButtonClick(CurPageID: Integer): Boolean;
+begin
+  Result := True;
+  if (CurPageID = wpSelectDir) and (Length(WizardDirValue) > 90) then
+  begin
+    MsgBox('Please choose a shorter folder (at most 90 characters). Sora contains deep folders, and Windows ' +
+           'cannot install files whose full path is longer than 260 characters.', mbError, MB_OK);
+    Result := False;
+  end;
+end;
+
 function WebView2Version(Root: Integer; Key: string): string;
 begin
   if not RegQueryStringValue(Root, Key, 'pv', Result) then Result := '';
