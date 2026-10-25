@@ -1,0 +1,34 @@
+Sora bundles the following third-party software and models. Each remains under its own licence.
+
+ENGINE (engine\)
+- OpenVINO 2026.4 and oneTBB (Intel) - Apache License 2.0 - https://github.com/openvinotoolkit/openvino
+- ONNX Runtime 1.24 (DirectML build, Microsoft) - MIT - https://github.com/microsoft/onnxruntime
+- DirectML 1.15 (Microsoft) - Microsoft DirectML redistributable licence - https://www.nuget.org/packages/Microsoft.AI.DirectML
+- Microsoft Visual C++ runtime (msvcp140, vcruntime140, vcomp140) - Microsoft Visual C++ redistributable licence
+- FFmpeg 9.0.2 "full" build by gyan.dev - GNU General Public License v3. Source code: https://ffmpeg.org/download.html
+  and https://www.gyan.dev/ffmpeg/builds/ (the build is unmodified).
+- nlohmann/json - MIT; pocketfft - BSD 3-Clause
+
+MODELS (engine\models\)
+- HTDemucs (Meta Research, "Hybrid Transformers for Music Source Separation") - code MIT; the pretrained weights
+  are for non-commercial use (CC BY-NC 4.0). https://github.com/facebookresearch/demucs
+- wav2vec 2.0 Large (LV-60k, fine-tuned on LibriSpeech 960h; Meta / fairseq, via torchaudio) - MIT
+- Beat This! (CPJKU, final0 checkpoint) - MIT - https://github.com/CPJKU/beat_this
+  Sora's INT8 / ONNX versions of these were converted with NNCF / PyTorch; they carry the originals' terms.
+
+WINDOW
+- Microsoft Edge WebView2 SDK (static loader) - BSD-style licence (Microsoft)
+
+VIDEO PIPELINE (python\, node\, tool\)
+- Python 3.11 (embeddable) - PSF License; NumPy, SciPy, scikit-learn, numba, llvmlite, soundfile - BSD;
+  librosa - ISC; PyYAML - MIT; requests - Apache 2.0
+- Node.js 24 - MIT
+- Remotion 4 - Remotion License (free for individuals and companies of up to 3 people; larger companies need a
+  company licence: https://www.remotion.pro/license); React, three.js and the renderer's other npm packages - MIT
+  and similar permissive licences (see tool\renderer\node_modules\*\LICENSE)
+- Chrome Headless Shell (used by Remotion) - BSD 3-Clause (Chromium) and its third-party licences
+- The lyric-video layout and renderer come from Music Tool (tool\), by its authors.
+
+LYRICS
+- Lyrics are looked up on LRCLIB (https://lrclib.net) and Genius (https://genius.com). Lyrics belong to their
+  songwriters and publishers. Genius' terms of service do not allow scraping; the web lookup is for personal use.

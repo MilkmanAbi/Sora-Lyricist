@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sora</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div id="app">
+  <aside id="side">
+    <div class="brand"><img src="sora.png" alt=""><span>Sora</span></div>
+    <header class="side-head">
+      <h1>Songs</h1>
+      <button id="add" class="ghost" title="Add songs">Add…</button>
+    </header>
+    <ol id="list"></ol>
+    <div id="drop-empty" class="dropzone">
+      <div class="dz-title">Drop songs here</div>
+      <div class="dz-sub">MP3, WAV, FLAC, M4A, OGG, OPUS and more, or a whole folder</div>
+      <button id="browse" class="secondary">Choose files…</button>
+    </div>
+    <div id="device" class="device muted small" title="Where Sora runs the separation and timing"></div>
+  </aside>
+
+  <main id="main">
+    <div id="nothing" class="nothing">
+      <img class="hero" src="sora.png" alt="">
+      <p>Add songs to make lyric videos from them.</p>
+      <p class="muted">Each song gets its tags checked, its lyrics found and timed to the singing, and the files you pick
+        saved where you choose.</p>
+    </div>
+
+    <div id="detail" hidden>
+      <div class="song-head">
+        <img id="d-cover" alt="" hidden>
+        <div class="song-head-text">
+          <h2 id="d-title"></h2>
+          <div id="d-sub" class="muted"></div>
+        </div>
+        <button id="d-remove" class="ghost danger" title="Remove from the list">Remove</button>
+      </div>
+
+      <section>
+        <h3>Tags</h3>
+        <p class="muted small">Used to find the lyrics, on the video's title strip, and in the finished files.</p>
+        <div class="seg" role="radiogroup">
+          <label><input type="radio" name="tagmode" value="keep"><span>Keep the file's tags</span></label>
+          <label><input type="radio" name="tagmode" value="own"><span>Use my own</span></label>
+        </div>
+        <div class="grid">
+          <label>Title <input id="t-title" type="text" spellcheck="false"></label>
+          <label>Artist <input id="t-artist" type="text" spellcheck="false"></label>
+          <label>Album <input id="t-album" type="text" spellcheck="false"></label>
+          <div class="cover-field">
+            <span>Cover</span>
+            <div class="cover-row">
+              <img id="t-cover" alt="" hidden>
+              <span id="t-nocover" class="muted small">none</span>
+              <button id="t-pickcover" class="secondary small-btn">Choose…</button>
+              <button id="t-clearcover" class="ghost small-btn">Clear</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="row-between">
+          <h3>Lyrics</h3>
+          <button id="l-search" class="secondary small-btn">Search again</button>
+        </div>
+        <div id="l-status" class="muted small"></div>
+        <div id="l-options" class="options"></div>
+        <textarea id="l-mine" hidden spellcheck="false"
+          placeholder="Paste the lyrics, one line per sung line. Synced [mm:ss.xx] lines are used as timing hints."></textarea>
+        <div id="l-diff" class="diff" hidden></div>
+        <pre id="l-preview" class="preview" hidden></pre>
+      </section>
+
+      <section>
+        <h3>Look</h3>
+        <label class="inline">Highlight colour <input id="accent" type="color" value="#ff6b4a"></label>
+      </section>
+
+      <section id="d-result" hidden>
+        <h3>Result</h3>
+        <div id="d-error" class="error" hidden></div>
+        <ul id="d-files" class="files"></ul>
+      </section>
+    </div>
+  </main>
+
+  <footer id="bar">
+    <div class="make">
+      <span class="bar-label">Make</span>
+      <label><input type="checkbox" data-out="youtube_full"> Video 16:9</label>
+      <label><input type="checkbox" data-out="ipod_short"> iPod short</label>
+      <label><input type="checkbox" data-out="ipod_full"> iPod full</label>
+      <label><input type="checkbox" data-out="lyrics"> Lyrics file</label>
+      <label><input type="checkbox" data-out="audio"> Tagged audio</label>
+    </div>
+    <div class="where">
+      <span class="bar-label">Save to</span>
+      <button id="outdir" class="link" title="Change where the files go"></button>
+    </div>
+    <div class="go">
+      <span id="overall" class="muted small"></span>
+      <button id="cancel" class="secondary" hidden>Stop</button>
+      <button id="start" class="primary">Make</button>
+    </div>
+  </footer>
+</div>
+<div id="dragcover" hidden><div>Drop to add</div></div>
+<script src="app.js"></script>
+</body>
+</html>
