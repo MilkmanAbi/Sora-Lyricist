@@ -4,7 +4,7 @@
 ; headless Chrome - nothing has to be installed by hand.
 ;   build.bat && build.bat gui && powershell -File installer\assemble_app.ps1
 ;   "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\sora.iss
-#define AppVer "0.3.0"
+#define AppVer "0.4.0"
 #define AppDir GetEnv("USERPROFILE") + "\music-native\app"
 #define Downloads GetEnv("USERPROFILE") + "\music-native\downloads"
 
@@ -43,7 +43,7 @@ Name: "addtopath"; Description: "Add the command-line engine (mtn) to my PATH"; 
 
 [Files]
 Source: "{#AppDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; \
-    Excludes: "\tool\renderer\public\edits\*,\tool\renderer\public\audio\*,\tool\output\*,__pycache__,*.pyc"
+    Excludes: "\tool\renderer\public\edits\*,\tool\renderer\public\audio\*,\tool\renderer\public\bg\*,\tool\output\*,__pycache__,*.pyc"
 Source: "{#Downloads}\MicrosoftEdgeWebview2Setup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: NeedsWebView2
 
 [Icons]
@@ -65,6 +65,7 @@ Filename: "{app}\Sora.exe"; Description: "Open Sora"; Flags: nowait postinstall 
 Type: filesandordirs; Name: "{localappdata}\Sora"
 Type: filesandordirs; Name: "{app}\tool\renderer\public\edits"
 Type: filesandordirs; Name: "{app}\tool\renderer\public\audio"
+Type: filesandordirs; Name: "{app}\tool\renderer\public\bg"
 Type: filesandordirs; Name: "{app}\tool\output"
 Type: filesandordirs; Name: "{app}\python\Lib\site-packages\__pycache__"
 

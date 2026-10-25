@@ -78,8 +78,26 @@
       </section>
 
       <section>
-        <h3>Look</h3>
-        <label class="inline">Highlight colour <input id="accent" type="color" value="#ff6b4a"></label>
+        <div class="row-between">
+          <h3>Look</h3>
+          <button id="v-all" class="secondary small-btn" title="Give every song in the list this theme and background">Use for all songs</button>
+        </div>
+        <p class="muted small">The video's colours, with a soft highlight on the word being sung.</p>
+        <div id="themes" class="themes"></div>
+        <label id="accent-row" class="inline small">Song colour <input id="accent" type="color" value="#ff6b4a"></label>
+        <div class="sub-head">Behind the lyrics</div>
+        <div class="seg" role="radiogroup">
+          <label><input type="radio" name="bgmode" value="record"><span>Spinning record</span></label>
+          <label><input type="radio" name="bgmode" value="clip"><span>My own video</span></label>
+        </div>
+        <div id="bg-row" class="bg-row" hidden>
+          <img id="bg-thumb" alt="" hidden>
+          <div class="bg-text">
+            <div id="bg-name"></div>
+            <div class="muted small">A video, GIF or picture. It fills the frame, loops if it's shorter than the song, and its sound is left out.</div>
+          </div>
+          <button id="bg-pick" class="secondary small-btn">Choose…</button>
+        </div>
       </section>
 
       <section id="d-result" hidden>

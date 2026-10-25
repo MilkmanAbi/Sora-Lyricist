@@ -249,6 +249,8 @@ static bool run_song(const json& s) {
                      L" --accent " + quote(W(s.value("accent", "#ff6b4a"))) + L" --lyrics " + quote(W(lyr)) +
                      L" --outputs " + quote(W(outs)) + L" --out-dir " + quote(W(s["outDir"]));
     if (!s.value("cover", std::string()).empty()) p += L" --cover " + quote(W(s["cover"]));
+    if (!s.value("theme", std::string()).empty()) p += L" --theme " + quote(W(s["theme"]));
+    if (!s.value("background", std::string()).empty()) p += L" --background " + quote(W(s["background"]));
     int code = run(p, relay("make"), log);
     bool ok = code == 0 && !g_cancel;
     if (!ok && error.empty()) error = g_cancel ? "cancelled" : last_error_line(log);
@@ -308,6 +310,26 @@ static std::vector<std::wstring> pick(bool folder, bool multi, const std::vector
 
 static const wchar_t* kAudio = L"*.mp3;*.wav;*.flac;*.m4a;*.aac;*.ogg;*.opus;*.wma;*.aiff;*.aif;*.alac;*.webm;*.mp4;*.mkv;*.mka";
 
+static const wchar_t* kClips = L"*.mp4;*.mov;*.mkv;*.webm;*.avi;*.m4v;*.wmv;*.gif;*.png;*.jpg;*.jpeg;*.webp";
+
+// the user's background clip: a still from it for the page (the pipeline does the real conversion)
+static void cmd_background(const std::string& id, const std::wstring& clip) {
+    fs::path thumb = g_work / "thumbs" / (std::to_string(GetTickCount64()) + ".jpg");
+    fs::create_directories(thumb.parent_path());
+    std::wstring ff = quote((g_app / "engine" / "ffmpeg.exe").wstring());
+    auto grab = [&](const wchar_t* seek) {
+        run(ff + L" -v error -y" + seek + L" -i " + quote(clip) + L" -frames:v 1 -vf \"scale=320:-2\" " + quote(thumb.wstring()),
+            [](const std::string&) {}, g_work / "logs" / "thumbs.log");
+        std::error_code ec;
+        return fs::file_size(thumb, ec) > 0 && !ec;
+    };
+    bool ok = grab(L" -ss 0.5") || grab(L"");  // a GIF or clip shorter than half a second: its first frame
+    send({{"type", "background"}, {"id", id}, {"path", U(fs::path(clip))}, {"name", U(fs::path(clip).filename())},
+          {"url", ok ? data_url(thumb) : ""}, {"ok", ok}});
+    std::error_code ec;
+    fs::remove(thumb, ec);
+}
+
 static bool is_audio(const fs::path& p) {
     static const std::vector<std::wstring> ext{L".mp3", L".wav", L".flac", L".m4a", L".aac", L".ogg", L".opus", L".wma",
                                                L".aiff", L".aif", L".alac", L".webm", L".mp4", L".mkv", L".mka"};
@@ -341,6 +363,8 @@ static void on_message(ICoreWebView2WebMessageReceivedEventArgs* args) {
         json init = {{"type", "init"}, {"outDir", U(known(FOLDERID_Music) / "Sora")}, {"busy", g_busy.load()}};
         if (const wchar_t* t = _wgetenv(L"MT_TEST_START")) init["testStart"] = U(std::wstring(t));
         if (const wchar_t* t = _wgetenv(L"MT_TEST_OUTPUTS")) init["testOutputs"] = U(std::wstring(t));
+        if (const wchar_t* t = _wgetenv(L"MT_TEST_THEME")) init["testTheme"] = U(std::wstring(t));
+        if (const wchar_t* t = _wgetenv(L"MT_TEST_BACKGROUND")) init["testBackground"] = U(std::wstring(t));
         send(init);
         std::thread([] {  // which GPU / CPU the engine will use, for the status line
             json d;
@@ -387,6 +411,11 @@ static void on_message(ICoreWebView2WebMessageReceivedEventArgs* args) {
     } else if (c == "pickCover") {
         auto r = pick(false, false, {{L"Images", L"*.jpg;*.jpeg;*.png"}}, L"Cover image");
         if (!r.empty()) send({{"type", "cover"}, {"id", m["id"]}, {"path", U(r[0])}, {"url", data_url(r[0])}});
+    } else if (c == "pickBackground") {
+        std::vector<std::wstring> r;
+        if (_wgetenv(L"MT_TEST_BACKGROUND") && !m.value("path", std::string()).empty()) r.push_back(W(m["path"]));  // testing
+        else r = pick(false, false, {{L"Videos, GIFs and pictures", kClips}, {L"All files", L"*.*"}}, L"Background video");
+        if (!r.empty()) std::thread(cmd_background, m.value("id", std::string()), r[0]).detach();
     } else if (c == "tags") {
         std::thread(cmd_tags, m).detach();
     } else if (c == "lyrics") {

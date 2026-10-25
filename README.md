@@ -59,7 +59,7 @@ most one reset per network, ever. Don't force `--device dml` on a weak iGPU.
 | 1 | **`mtn analyze`**: decode → vocal separation (htdemucs) → beats (Beat This!) → word alignment (wav2vec2 + CTC) → vocal onsets. Writes the same `song.json` as `tools/analyze_song.py`, so `make.py`, `build_edit.py` and the Remotion renderer use it unchanged (`make.py --engine native`). On a 4-minute song it takes **151 s, against 614 s for the Python pipeline (~4×)**. Re-analysing with a cached separation takes **6 s**, and the lyric timing is more accurate (below). | **done** |
 | 2 | Port `build_edit.py` + `pick_short.py` (layout, short-window picking: plain logic) | next |
 | 3 | Native renderer (Direct2D/D3D11 compositing + Quick Sync H.264 encode) to replace Remotion/Node | planned |
-| 4 | The Sora app: window, tagger, lyric picker, self-contained Inno Setup installer (`app\`, `installer\`) | **done** (v0.3.0) |
+| 4 | The Sora app: window, tagger, lyric picker, self-contained Inno Setup installer (`app\`, `installer\`) | **done** (v0.3.0; themes + own backgrounds v0.4.0) |
 
 Where the time goes on a 252 s song (i7-1065G7 + Iris Plus): the iGPU separates 44 chunks at ~3.1 s each, which takes
 ~140 s. Meanwhile the CPU tracks beats (11 s) and aligns each finished 24 s window of vocals (13 windows, INT8), so
@@ -80,13 +80,22 @@ A window to drop songs into: it checks their tags, finds and times their lyrics,
 3. **Lyrics** are looked up as soon as a song is added. Pick *Local* (LRCLIB, timed), *Web* (Genius, edited words),
    *Both* (Genius words on LRCLIB timing, the default) or *My own* (paste plain lines or a synced .lrc). The
    chosen version is previewed with its timestamps, along with the lines where Genius corrected LRCLIB.
-4. **Make**: Video 16:9 (1920×1080), iPod short (~30 s, 4:3 + the .m4v a 5th-gen iPod plays), iPod full, the lyrics
+4. **Look**: a video theme. *Original* is Music Tool's own look in a colour you pick. The **Classic** themes are Darker,
+   Polarized (Solarized), Monokai, Gruvbox, Dracula, Nord, Catppuccin and Tokyo Night. The **Moods** are Ocean,
+   Sakura, Sky, Forest, Sunset, Lavender and Melon. A theme recolours the sleeve, title strip and record, and puts a
+   soft highlight behind the word being sung. *Behind the lyrics* is the spinning record, or **your own video, GIF or
+   picture**: it fills the frame, loops if it's shorter than the song, is tinted by the theme, and its sound is
+   dropped. *Use for all songs* copies the look to the whole list.
+5. **Make**: Video 16:9 (1920×1080), iPod short (~30 s, 4:3 + the .m4v a 5th-gen iPod plays), iPod full, the lyrics
    file, and a tagged copy of the audio. *Save to* is asked when you press Make (and remembered as the default).
    Progress shows per song (separating, beat, timing, laying out, rendering). *Stop* ends every running step at once.
 
 Under the hood the window (C++ + WebView2, static runtime) runs `engine\mtn.exe` for tags, lyrics and analysis, then
 `python\python.exe pipeline\mt_pipeline.py`, which reuses the Python tool's own `make.py` steps (layout, Remotion
-render, iPod encode) and adds tagging and delivery. Every child process sits in a kill-on-close job object.
+render, iPod encode) and adds tagging and delivery. Themes live in `ui\themes.json`. The pipeline writes the chosen
+theme and the converted clip (silent H.264 at the video's size, in `renderer\public\bg`) into the edit. Sora's
+renderer additions in `app\renderer\src\sora` draw them; without either, Music Tool's own composition renders
+unchanged. Every child process sits in a kill-on-close job object.
 
 **Self-contained.** The installed folder carries everything, so nothing has to be installed by hand:
 
@@ -105,8 +114,9 @@ Not in the app yet: the CD look (it needs cover-art layers made by `tools/art/cd
 photo look (it needs the depth model). Both stay in the Python tool.
 
 Build the app: `build.bat` (engine), `build.bat gui` (window), `installer\assemble_app.ps1` (app folder),
-`ISCC installer\musictool.iss` (setup). For development, `MT_DEV=1` enables the page's dev tools, and
-`MT_TEST_FILES=a.mp3;b.mp3` with `MT_TEST_START=folder` adds songs and makes them without any clicks.
+`ISCC installer\sora.iss` (setup). For development, `MT_DEV=1` enables the page's dev tools, and
+`MT_TEST_FILES=a.mp3;b.mp3` with `MT_TEST_START=folder` adds songs and makes them without any clicks
+(`MT_TEST_OUTPUTS`, `MT_TEST_THEME=sakura`, `MT_TEST_BACKGROUND=clip.mp4` narrow it down).
 
 ## Lyrics from the web
 

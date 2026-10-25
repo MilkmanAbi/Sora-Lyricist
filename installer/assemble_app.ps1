@@ -89,6 +89,9 @@ Copy-Item -Force "$ToolRepo\analysis\timing_recipe.json" "$Tool\analysis\"
 foreach ($f in 'package.json', 'package-lock.json', 'remotion.config.ts', 'tsconfig.json') { Copy-Item -Force "$ToolRepo\renderer\$f" "$Tool\renderer\" }
 Copy-Item -Recurse -Force "$ToolRepo\renderer\src" "$Tool\renderer\"
 Copy-Item -Recurse -Force "$ToolRepo\renderer\public\fonts" "$Tool\renderer\public\"
+# Sora's additions on top (video themes, the user's own background clip): src\sora\ + its Composition.tsx
+Copy-Item -Recurse -Force "$Src\app\renderer\src\*" "$Tool\renderer\src\"
+New-Item -ItemType Directory -Force "$Tool\renderer\public\bg" | Out-Null
 Set-Content -Encoding ascii "$Tool\VERSION.txt" ("music-tool " + (git -C $ToolRepo rev-parse --short HEAD) + " (+ local changes: " + ((git -C $ToolRepo status --short) -join ', ') + ")")
 if (-not (Test-Path "$Tool\renderer\node_modules\@remotion\cli")) {
     # reuse the dev checkout's install (incl. Remotion's headless Chrome), then drop dev-only packages

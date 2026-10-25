@@ -17,6 +17,8 @@ let outDirAsked = false; // the folder is confirmed once per session, right befo
 let busy = false;
 let outputs = store.get("outputs", ["youtube_full", "ipod_short", "lyrics"]);
 let nextId = 1;
+let themes = [];         // ui/themes.json
+let lastLook = store.get("look", { theme: "original", accent: "#ff6b4a" });  // new songs start from the last choice
 
 const LABEL = { local: "Local", web: "Web", both: "Both", mine: "My own" };
 
@@ -33,7 +35,8 @@ function addSong(path) {
     own: { title: "", artist: "", album: "" },
     cover: null, coverUrl: null,          // file's embedded cover (or one the user picked)
     lyr: { state: "idle", summary: null, texts: {}, choice: null, mine: "", mineFile: null, searchedFor: "" },
-    accent: "#ff6b4a",
+    theme: lastLook.theme, accent: lastLook.accent,
+    bgMode: "record", bg: null,           // bg: the user's clip {path, name, url (still)}
     status: "reading", pct: 0, stage: "", files: [], error: "",
   };
   songs.push(s);
@@ -63,6 +66,9 @@ function searchLyrics(s) {
   send({ cmd: "lyrics", id: s.id, path: s.path, title: t.title, artist: t.artist });
 }
 
+// ready to make: lyrics chosen, and a clip picked if the song is to play over one
+const isReady = (s) => !!lyricsFile(s) && (s.bgMode !== "clip" || !!s.bg);
+
 function statusText(s) {
   if (s.status === "reading") return ["Reading…", ""];
   if (s.status === "queued") return ["Waiting", ""];
@@ -71,6 +77,7 @@ function statusText(s) {
   if (s.status === "failed") return ["Failed", "bad"];
   if (s.lyr.state === "loading") return ["Lyrics…", ""];
   if (!lyricsFile(s)) return ["No lyrics", "bad"];
+  if (!isReady(s)) return ["No video", "bad"];
   return ["Ready", ""];
 }
 
@@ -93,7 +100,7 @@ function renderList() {
     list.appendChild(li);
   }
   $("#drop-empty .dz-title").textContent = songs.length ? "Drop more songs here" : "Drop songs here";
-  const ready = songs.filter((s) => lyricsFile(s) && s.status !== "done").length;
+  const ready = songs.filter((s) => isReady(s) && s.status !== "done").length;
   $("#start").textContent = busy ? "Making…" : ready > 1 ? `Make ${ready} songs` : "Make";
   $("#start").disabled = busy || !ready || !outputs.length;
   $("#cancel").hidden = !busy;
@@ -199,7 +206,7 @@ function renderDetail() {
     }
   }
 
-  $("#accent").value = s.accent;
+  renderLook(s);
 
   // result
   $("#d-result").hidden = !(s.status === "done" || s.status === "failed" || s.files.length);
@@ -217,6 +224,45 @@ function renderDetail() {
     ul.appendChild(li);
   }
 }
+
+function renderLook(s) {
+  const box = $("#themes");
+  box.innerHTML = "";
+  let group = "";
+  for (const th of themes) {
+    if (th.group !== group) {
+      group = th.group;
+      const g = document.createElement("div");
+      g.className = "theme-group";
+      g.textContent = group === "classic" ? "Classic" : "Moods";
+      box.appendChild(g);
+    }
+    // 'original' has no colours of its own: Music Tool's dark sleeve in the song's colour
+    const c = th.accent ? th : { bg: "#0c0b10", accent: s.accent, record: s.accent + "99" };
+    const b = document.createElement("button");
+    b.className = "swatch" + (s.theme === th.id ? " sel" : "");
+    b.title = th.name;
+    b.innerHTML = `<span class="tile"><i></i><i></i><i></i></span><span class="nm"></span>`;
+    const [bg, hi, rec] = b.querySelectorAll(".tile i");  // background, highlight, record
+    bg.style.background = c.bg;
+    hi.style.background = c.accent;
+    rec.style.background = c.record;
+    b.querySelector(".nm").textContent = th.name;
+    b.onclick = () => { s.theme = th.id; remember(s); render(); };
+    box.appendChild(b);
+  }
+  $("#accent-row").hidden = s.theme !== "original";
+  $("#accent").value = s.accent;
+  for (const r of document.querySelectorAll("input[name=bgmode]")) r.checked = r.value === s.bgMode;
+  $("#bg-row").hidden = s.bgMode !== "clip";
+  $("#bg-thumb").hidden = !(s.bg && s.bg.url);
+  if (s.bg && s.bg.url) $("#bg-thumb").src = s.bg.url;
+  $("#bg-name").textContent = s.bgError || (s.bg ? s.bg.name : "No video chosen yet");
+  $("#bg-pick").textContent = s.bg ? "Change…" : "Choose…";
+  $("#v-all").hidden = songs.length < 2;
+}
+
+function remember(s) { lastLook = { theme: s.theme, accent: s.accent }; store.set("look", lastLook); }
 
 function renderBar() {
   $("#outdir").textContent = outDir || "Choose a folder…";
@@ -261,7 +307,24 @@ $("#l-mine").oninput = (e) => {
     renderList();
   }, 400);
 };
-$("#accent").oninput = (e) => { song(selected).accent = e.target.value; };
+$("#accent").oninput = (e) => { const s = song(selected); s.accent = e.target.value; remember(s); renderLook(s); };
+for (const r of document.querySelectorAll("input[name=bgmode]")) {
+  r.onchange = () => {
+    const s = song(selected);
+    s.bgMode = r.value;
+    if (s.bgMode === "clip" && !s.bg) send({ cmd: "pickBackground", id: s.id });
+    render();
+  };
+}
+$("#bg-pick").onclick = () => send({ cmd: "pickBackground", id: selected });
+$("#v-all").onclick = () => {
+  const s = song(selected);
+  for (const o of songs) {
+    if (o.status === "working" || o.status === "queued") continue;
+    Object.assign(o, { theme: s.theme, accent: s.accent, bgMode: s.bgMode, bg: s.bg });
+  }
+  render();
+};
 for (const c of document.querySelectorAll("[data-out]")) {
   c.onchange = () => {
     outputs = [...document.querySelectorAll("[data-out]")].filter((x) => x.checked).map((x) => x.dataset.out);
@@ -277,7 +340,7 @@ $("#start").onclick = () => {
 $("#cancel").onclick = () => send({ cmd: "cancel" });
 
 function start() {
-  const todo = songs.filter((s) => lyricsFile(s) && s.status !== "done" && s.status !== "working");
+  const todo = songs.filter((s) => isReady(s) && s.status !== "done" && s.status !== "working");
   if (!todo.length || busy) return;
   busy = true;
   for (const s of todo) { s.status = "queued"; s.pct = 0; s.files = []; s.error = ""; }
@@ -286,6 +349,7 @@ function start() {
     songs: todo.map((s) => {
       const t = tagsOf(s);
       return { id: s.id, path: s.path, title: t.title, artist: t.artist, album: t.album, accent: s.accent,
+               theme: s.theme, background: s.bgMode === "clip" && s.bg ? s.bg.path : "",
                cover: s.cover || "", lyricsFile: lyricsFile(s), outputs, outDir };
     }),
   });
@@ -319,6 +383,7 @@ function progressOf(s, m) {
   }
   if (m.stage === "short") { s.stage = "Choosing the short"; return Math.max(s.pct, 0.4); }
   if (m.stage === "layout") { s.stage = `Laying out (${m.of})`; s.outIndex = m.done; s.outCount = m.total; return Math.max(s.pct, 0.4 + 0.6 * m.done / m.total); }
+  if (m.stage === "background") { s.stage = `Preparing your video (${m.of})`; return s.pct; }
   if (m.stage === "render") {
     s.stage = `Rendering ${m.of}`;
     return Math.max(s.pct, 0.4 + 0.6 * ((s.outIndex || 0) + f) / outputsShare(s));
@@ -330,9 +395,11 @@ function progressOf(s, m) {
 const handlers = {
   init(m) {
     if (!outDir) { outDir = m.outDir; store.set("outDir", outDir); }
+    testBackground = m.testBackground || "";
     if (m.testStart) {  // testing (MT_TEST_START=folder): make everything once the lyrics are in, no dialogs
       outDir = m.testStart;
       if (m.testOutputs) outputs = m.testOutputs.split(",");
+      if (m.testTheme) lastLook.theme = m.testTheme;
       outDirAsked = true;
       const t = setInterval(() => {
         if (songs.length && songs.every((s) => s.lyr.state !== "loading" && s.status !== "reading")) { clearInterval(t); start(); }
@@ -342,6 +409,7 @@ const handlers = {
   },
   files(m) {
     for (const p of m.paths) addSong(p);
+    if (testBackground) for (const s of songs) if (!s.bg) { s.bgMode = "clip"; send({ cmd: "pickBackground", id: s.id, path: testBackground }); }
     render();
   },
   tags(m) {
@@ -367,6 +435,13 @@ const handlers = {
   },
   devices(m) { $("#device").textContent = m.plan ? "Runs on: " + m.plan : ""; },
   savedLyrics(m) { const s = song(m.id); if (s) { s.lyr.mineFile = m.file; renderList(); } },
+  background(m) {
+    const s = song(m.id);
+    if (!s) return;
+    s.bgError = m.ok ? "" : `Couldn't read ${m.name} as a video or picture. Try another file.`;
+    if (m.ok) { s.bg = { path: m.path, name: m.name, url: m.url }; s.bgMode = "clip"; }
+    render();
+  },
   cover(m) { const s = song(m.id); if (s) { s.cover = m.path; s.coverUrl = m.url; render(); } },
   folder(m) {
     if (m.path) { outDir = m.path; outDirAsked = true; store.set("outDir", outDir); }
@@ -398,6 +473,9 @@ const handlers = {
     render();
   },
 };
+
+let testBackground = "";  // testing (MT_TEST_BACKGROUND=clip): every song over this clip
+fetch("themes.json").then((r) => r.json()).then((j) => { themes = j.themes; render(); }).catch(() => {});
 
 if (host) {
   host.addEventListener("message", (e) => { const m = e.data; if (handlers[m.type]) handlers[m.type](m); });
