@@ -196,10 +196,10 @@ static void cmd_lyrics(const json& m) {
         json j = json::parse(l, nullptr, false);
         if (j.is_object()) summary = j;
     }, log);
-    json texts = json::object();
-    if (summary.is_object())
-        for (const char* k : {"local", "web", "both"})
-            if (summary.contains(k) && summary[k].contains("file")) texts[k] = read_file(W(summary[k]["file"].get<std::string>()));
+    json texts = json::object();  // each version's text, by its id ("best", "lrclib", "genius", ...)
+    if (summary.is_object() && summary.contains("versions"))
+        for (auto& v : summary["versions"])
+            if (v.contains("file")) texts[v.value("id", "")] = read_file(W(v["file"].get<std::string>()));
     send({{"type", "lyrics"}, {"id", id}, {"ok", code == 0 && summary.is_object()}, {"summary", summary}, {"texts", texts},
           {"error", code == 0 ? "" : last_error_line(log)}});
 }
@@ -235,6 +235,7 @@ static bool run_song(const json& s) {
                      L" --out " + quote(song.wstring()) + L" --progress-json --yes";
     if (!s.value("title", std::string()).empty()) a += L" --title " + quote(W(s["title"]));
     if (!s.value("artist", std::string()).empty()) a += L" --artist " + quote(W(s["artist"]));
+    if (s.value("show", std::string()) == "roman") a += L" --show roman";  // lyrics not in Latin letters, romanised
     if (run(a, relay("analyze"), log) != 0 || g_cancel) {
         if (error.empty()) error = g_cancel ? "cancelled" : last_error_line(log);
         send({{"type", "songDone"}, {"id", id}, {"ok", false}, {"error", error}});

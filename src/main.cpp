@@ -1,11 +1,13 @@
 // mtn - Music Tool native analysis engine.
 //
 //   mtn analyze AUDIO [--lrc FILE | --lyrics FILE] --out analysis/songs/NAME.song.json [options]
-//   mtn lyrics AUDIO [--lyrics-source local|web|both] [--save-lyrics PATH]
+//   mtn lyrics AUDIO [--lyrics-source SOURCE] [--save-lyrics PATH]
+//   mtn romanize TEXT|FILE
 //   mtn devices
 //
-// Without a lyric file, analyze looks the song up like `mtn lyrics` does (LRCLIB and Genius) and asks which to use
-// and where to save it. --yes takes the defaults (both; next to the output) without asking.
+// Without a lyric file, analyze looks the song up like `mtn lyrics` does (LRCLIB, NetEase, Bugs, Genius, lyrics.ovh)
+// and asks which version to use and where to save it. --yes takes the defaults (the best words on the best timing;
+// next to the output) without asking. Lyrics in any script: see roman.h.
 //
 // Writes the same song.json as tools/analyze_song.py (stems in <out dir>/stems/), so make.py / build_edit.py /
 // the Remotion renderer use it unchanged. Options:
@@ -21,6 +23,8 @@
 #include <condition_variable>
 #include <map>
 #include <mutex>
+#include <regex>
+#include <sstream>
 #include <thread>
 
 
@@ -34,6 +38,7 @@
 #include "json.hpp"
 #include "lyrics.h"
 #include "lyrics_web.h"
+#include "roman.h"
 #include "separate.h"
 
 using namespace mt;
@@ -101,11 +106,13 @@ static int usage() {
             "           [--sep-device D] [--w2v-device D] [--beat-device D] [--w2v large|base]\n"
             "           [--precision int8|fp32] [--lrc-stretch]\n"
             "           [--models DIR] [--cache DIR] [--no-cache] [--cache-gb N]\n"
-            "           [--lyrics-source local|web|both] [--save-lyrics PATH] [--title T] [--artist A] [--yes]\n"
-            "       mtn lyrics AUDIO [--lyrics-source local|web|both] [--save-lyrics PATH] [--title T] [--artist A]\n"
-            "                        [--yes]\n"
+            "           [--lyrics-source SOURCE] [--save-lyrics PATH] [--title T] [--artist A] [--yes] [--show roman]\n"
+            "       mtn lyrics AUDIO [--lyrics-source SOURCE] [--save-lyrics PATH] [--title T] [--artist A] [--yes]\n"
             "       mtn lyrics AUDIO --versions DIR [--title T] [--artist A]   (every version + JSON summary)\n"
             "       mtn tags AUDIO [--cover OUT.jpg]                        (JSON: title, artist, album, ...)\n"
+            "       mtn romanize TEXT|FILE   (per line: display units, the aligner's letters, readable Latin)\n"
+            "       SOURCE: best (the best words on the best timing) | lrclib | netease | bugs | genius | ovh\n"
+            "       --show roman: lyrics not in Latin letters are written romanised in song.json\n"
             "       mtn devices\n"
             "       --progress-json: stage progress as JSON lines on stdout\n");
     return 2;
@@ -133,6 +140,7 @@ static int run(int argc, wchar_t** wargv) {
     fs::path models = opt.count("--models") ? fs::u8path(opt["--models"]) : default_models();
     fs::path cache_dir = opt.count("--cache") ? fs::u8path(opt["--cache"]) : default_cache();
     init_openvino(cache_dir / "ov_kernels");
+    init_romanizer(models);
     set_gpu_marks(cache_dir / "gpu");
     if (pos[0] == "devices") {
         // what this PC has, and where analyze would run each network by default
@@ -172,6 +180,23 @@ static int run(int argc, wchar_t** wargv) {
             lc.interactive = false;
         }
         get_lyrics(src, a.frames() / 8000.0, fs::current_path() / src.stem(), lc);
+        return 0;
+    }
+    if (pos[0] == "romanize" && pos.size() >= 2) {
+        // per line: the display units, the aligner's letters and readable Latin (a lyric file, or the text itself)
+        std::error_code ec;
+        fs::path f = fs::u8path(pos[1]);
+        std::string text = fs::is_regular_file(f, ec) ? utf8_text(read_text(f)) : pos[1];
+        const bool ja = has_kana(text);
+        std::stringstream ss(text);
+        std::string line;
+        while (std::getline(ss, line)) {
+            line = std::regex_replace(line, std::regex(R"(\[[^\]]*\]|\r)"), "");
+            if (line.find_first_not_of(" \t") == std::string::npos) continue;
+            json j = {{"line", line}, {"units", json::array()}, {"letters", json::array()}, {"roman", romanize(line, ja)}};
+            for (auto& u : split_units(line, ja)) j["units"].push_back(u), j["letters"].push_back(align_letters(u, ja));
+            printf("%s\n", j.dump().c_str());
+        }
         return 0;
     }
     if (pos[0] == "tags" && pos.size() >= 2) {
@@ -372,14 +397,14 @@ static int run(int argc, wchar_t** wargv) {
     std::vector<std::optional<double>> anchors = L.times;
     json time_map = nullptr;
     if (opt.count("--lrc-stretch")) {
-        auto free = align(em, L.words, L.line_of, std::vector<std::optional<double>>(L.lines.size()), ao);
+        auto free = align(em, L.words, L.letters, L.line_of, std::vector<std::optional<double>>(L.lines.size()), ao);
         auto [scale, offset] = fit_time_map(free, L);
         for (auto& a : anchors)
             if (a) a = *a * scale + offset;
         time_map = {{"scale", r4(scale)}, {"offset", r3(offset)}};
         log("  lrc timeline fitted: song = %.4f * lrc + %.2fs", scale, offset);
     }
-    std::vector<Word> words = align(em, L.words, L.line_of, anchored ? anchors : std::vector<std::optional<double>>{}, ao);
+    std::vector<Word> words = align(em, L.words, L.letters, L.line_of, anchored ? anchors : std::vector<std::optional<double>>{}, ao);
     // CTC character spikes trail the sung onset by a roughly constant amount (measured on tools/bench.py; the
     // contrastive-alignment literature reports the same and shifts its predictions too)
     const double shift = opt.count("--shift") ? std::stod(opt["--shift"]) : -0.02;
@@ -396,6 +421,13 @@ static int run(int argc, wchar_t** wargv) {
         log("WARNING: these lyrics barely match the singing (confidence %.2f; correct lyrics score 0.24+). Probably a "
             "different song or version - check %s, or rerun with --title/--artist or --lyrics FILE",
             fit, utf8(lyr).c_str());
+
+    // --show roman: lyrics not in Latin letters are shown romanised (the timing is the same either way)
+    if (opt.count("--show") && opt["--show"] == "roman")
+        for (auto& w : words) {
+            std::string r = romanize(w.word, L.japanese);
+            if (!r.empty()) w.word = r;
+        }
 
     std::vector<double> onsets;
     Audio v22 = decode(voc_wav, 22050, 1);

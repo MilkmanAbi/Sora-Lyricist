@@ -20,7 +20,6 @@ let nextId = 1;
 let themes = [];         // ui/themes.json
 let lastLook = store.get("look", { theme: "original", accent: "#ff6b4a" });  // new songs start from the last choice
 
-const LABEL = { local: "Local", web: "Web", both: "Both", mine: "My own" };
 
 // ---------------------------------------------------------------- songs
 
@@ -35,6 +34,7 @@ function addSong(path) {
     own: { title: "", artist: "", album: "" },
     cover: null, coverUrl: null,          // file's embedded cover (or one the user picked)
     lyr: { state: "idle", summary: null, texts: {}, choice: null, mine: "", mineFile: null, searchedFor: "" },
+    show: "original",                     // lyrics not in Latin letters: shown as written | "roman"ised
     theme: lastLook.theme, accent: lastLook.accent,
     bgMode: "record", bg: null,           // bg: the user's clip {path, name, url (still)}
     status: "reading", pct: 0, stage: "", files: [], error: "",
@@ -56,7 +56,22 @@ function lyricsFile(s) {
   const c = s.lyr.choice;
   if (!c) return null;
   if (c === "mine") return s.lyr.mineFile;
-  return s.lyr.summary && s.lyr.summary[c] && s.lyr.summary[c].file;
+  const v = s.lyr.summary && (s.lyr.summary.versions || []).find((x) => x.id === c);
+  return v && v.file;
+}
+
+// the main script of some lyrics, as the engine names it (for pasted lyrics)
+function scriptOf(text) {
+  const n = (re) => (text.match(re) || []).length;
+  const kana = n(/[\p{Script=Hiragana}\p{Script=Katakana}]/gu), han = n(/\p{Script=Han}/gu);
+  const counts = {
+    Latin: n(/\p{Script=Latin}/gu), Japanese: kana ? kana + han : 0, Chinese: kana ? 0 : han,
+    Korean: n(/\p{Script=Hangul}/gu), Cyrillic: n(/\p{Script=Cyrillic}/gu), Greek: n(/\p{Script=Greek}/gu),
+    Devanagari: n(/\p{Script=Devanagari}/gu), Tamil: n(/\p{Script=Tamil}/gu), Thai: n(/\p{Script=Thai}/gu),
+    Arabic: n(/\p{Script=Arabic}/gu),
+  };
+  const [top, count] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+  return count ? top : "Latin";
 }
 
 function searchLyrics(s) {
@@ -133,56 +148,59 @@ function renderDetail() {
 
   // lyrics
   const L = s.lyr, sum = L.summary;
+  const versions = (sum && sum.versions) || [];
   const status = $("#l-status");
   const searched = (t.title + "|" + t.artist) !== L.searchedFor && L.state !== "idle";
   $("#l-search").hidden = L.state === "loading";
   $("#l-search").textContent = searched ? "Search with the new tags" : "Search again";
-  if (L.state === "loading") status.textContent = `Looking up "${t.title}"${t.artist ? " by " + t.artist : ""} on LRCLIB and Genius…`;
+  if (L.state === "loading") status.textContent = `Looking up "${t.title}"${t.artist ? " by " + t.artist : ""} on LRCLIB, NetEase, Bugs, Genius and lyrics.ovh…`;
   else if (L.state === "fail") status.textContent = (L.error || "No lyrics found.") + " Paste your own below, or edit the tags and search again.";
   else if (sum) status.textContent = sum.query && !sum.query.artist ? "No artist known - check these are the right song." : "";
   else status.textContent = "";
-  // the aligner reads Latin letters (English-trained): Japanese / Cyrillic / ... lyrics only get rough timing
-  const shown = L.choice === "mine" ? L.mine : (L.texts[L.choice] || "");
-  const letters = shown.replace(/\[[^\]]*\]|[\s\d\p{P}\p{S}]/gu, "");
-  const latin = letters.replace(/[^\p{Script=Latin}]/gu, "");
-  if (letters.length > 20 && latin.length / letters.length < 0.5)
-    status.textContent = "These lyrics aren't in Latin letters, so the timing will be rough. A romanised version (paste it under My own) times better.";
 
   const opts = $("#l-options");
   opts.innerHTML = "";
-  const add = (key, title, meta, ok, rec) => {
+  const add = (key, title, meta, rec) => {
     const d = document.createElement("label");
-    d.className = "opt" + (L.choice === key ? " sel" : "") + (ok ? "" : " off");
+    d.className = "opt" + (L.choice === key ? " sel" : "");
     d.innerHTML = `<input type="radio" name="lyr"><div class="name"></div><div class="meta"></div>`;
     d.querySelector(".name").textContent = title;
     if (rec) d.querySelector(".name").insertAdjacentHTML("beforeend", "<em>recommended</em>");
     d.querySelector(".meta").textContent = meta;
     const r = d.querySelector("input");
     r.checked = L.choice === key;
-    r.disabled = !ok;
     r.onchange = () => { L.choice = key; render(); };
     opts.appendChild(d);
   };
-  if (sum) {
-    const l = sum.local, w = sum.web, b = sum.both;
-    const mmss = (x) => x ? `${Math.floor(x / 60)}:${String(Math.round(x % 60)).padStart(2, "0")}` : "";
-    add("local", "Local - LRCLIB", l.found ? `"${l.title}" by ${l.artist} · ${mmss(l.duration)} · ${l.lines} lines, timed` : l.error, l.found, sum.recommended === "local");
-    add("web", "Web - Genius", w.found ? `"${w.title}" by ${w.artist} · ${w.lines} lines · carefully edited words, no timing` : w.error, w.found, sum.recommended === "web");
-    add("both", "Both - Genius words on LRCLIB timing", b.found ? `${b.matched} lines matched, ${b.changed} with corrected words` : "needs both, for the same song", b.found, sum.recommended === "both");
-  }
-  if (L.state !== "loading") add("mine", "My own", "paste or type them", true, false);
+  for (const v of versions) add(v.id, v.name, v.detail, v.id === sum.recommended);
+  if (L.state !== "loading") add("mine", "My own", "paste or type them", false);
+  const missing = $("#l-missing");
+  missing.hidden = !(sum && sum.missing && sum.missing.length);
+  if (!missing.hidden) missing.textContent = "Also searched: " + sum.missing.map((m) => `${m.name} (${m.error})`).join(" · ");
   $("#l-mine").hidden = L.choice !== "mine";
   if (L.choice === "mine" && document.activeElement !== $("#l-mine")) $("#l-mine").value = L.mine;
 
+  // lyrics not in Latin letters: timed through their romanisation; shown as written or romanised
+  const shown = L.choice === "mine" ? L.mine : (L.texts[L.choice] || "");
+  const script = L.choice === "mine" ? scriptOf(shown) : (sum && sum.script) || "Latin";
+  $("#l-show").hidden = script === "Latin" || !shown.trim();
+  $("#l-script").textContent = `${script} lyrics: timed through their romanisation.`;
+  for (const r of document.querySelectorAll("input[name=lshow]")) r.checked = r.value === s.show;
+
   const diff = $("#l-diff");
-  diff.hidden = !(L.choice === "both" && sum && sum.both.examples && sum.both.examples.length);
-  if (!diff.hidden) {
+  const best = versions.find((v) => v.id === L.choice && v.examples && v.examples.length);
+  diff.hidden = !best;
+  if (best) {
+    const name = (id) => (versions.find((v) => v.id === id) || { name: id }).name;
     diff.innerHTML = "";
-    for (const [g, l] of sum.both.examples.slice(0, 4)) {
+    for (const [g, l] of best.examples.slice(0, 4)) {
       const d = document.createElement("div");
-      d.innerHTML = "<b>Genius</b><span></span><br><b>LRCLIB</b><span></span>";
-      d.querySelectorAll("span")[0].textContent = g;
-      d.querySelectorAll("span")[1].textContent = l;
+      d.innerHTML = "<b></b><span></span><br><b></b><span></span>";
+      const [b1, b2] = d.querySelectorAll("b"), [s1, s2] = d.querySelectorAll("span");
+      b1.textContent = name(best.words);
+      b2.textContent = name(best.timing);
+      s1.textContent = g;
+      s2.textContent = l;
       diff.appendChild(d);
     }
   }
@@ -295,6 +313,7 @@ for (const k of ["title", "artist", "album"]) {
 }
 $("#t-pickcover").onclick = () => send({ cmd: "pickCover", id: selected });
 $("#t-clearcover").onclick = () => { const s = song(selected); s.cover = null; s.coverUrl = null; render(); };
+for (const r of document.querySelectorAll("input[name=lshow]")) r.onchange = () => { song(selected).show = r.value; };
 $("#l-search").onclick = () => { searchLyrics(song(selected)); render(); };
 let mineTimer = 0;
 $("#l-mine").oninput = (e) => {
@@ -349,7 +368,7 @@ function start() {
     songs: todo.map((s) => {
       const t = tagsOf(s);
       return { id: s.id, path: s.path, title: t.title, artist: t.artist, album: t.album, accent: s.accent,
-               theme: s.theme, background: s.bgMode === "clip" && s.bg ? s.bg.path : "",
+               theme: s.theme, background: s.bgMode === "clip" && s.bg ? s.bg.path : "", show: s.show,
                cover: s.cover || "", lyricsFile: lyricsFile(s), outputs, outDir };
     }),
   });

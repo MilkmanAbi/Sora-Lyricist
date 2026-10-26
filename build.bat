@@ -27,7 +27,7 @@ set DML=%TP%\ort\dmlpkg\bin\x64-win
 cl /nologo /utf-8 /std:c++20 /EHsc /MD /W3 /openmp /arch:AVX2 /fp:fast %OPT% /DNOMINMAX /D_CRT_SECURE_NO_WARNINGS /D_SILENCE_CXX20_U8PATH_DEPRECATION_WARNING ^
    /I"%TP%" /I"%TP%\openvino\include" /I"%ORT%\build\native\include" /Fo"%OUT%\obj\\" ^
    src\main.cpp src\common.cpp src\cache.cpp src\audio.cpp src\dsp.cpp src\infer.cpp src\separate.cpp ^
-   src\beats.cpp src\align.cpp src\lyrics.cpp src\lyrics_web.cpp src\http.cpp src\gpu.cpp ^
+   src\beats.cpp src\align.cpp src\lyrics.cpp src\lyrics_web.cpp src\http.cpp src\gpu.cpp src\roman.cpp ^
    /Fe:"%OUT%\%EXE%" /link %LOPT% /LIBPATH:"%TP%\openvino\libs" openvino.lib ^
    "%ORT%\runtimes\win-x64\native\onnxruntime.lib" delayimp.lib /DELAYLOAD:onnxruntime.dll /DELAYLOAD:d3d12.dll ^
    /DELAYLOAD:dxgi.dll || exit /b 1

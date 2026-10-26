@@ -173,8 +173,9 @@ static std::vector<int> viterbi(const Emissions& em, const std::vector<int>& cls
     return path;
 }
 
-std::vector<Word> align(const Emissions& em, const std::vector<std::string>& words, const std::vector<int>& line_of,
-                        const std::vector<std::optional<double>>& anchors, const AlignOptions& opt) {
+std::vector<Word> align(const Emissions& em, const std::vector<std::string>& words, const std::vector<std::string>& letters,
+                        const std::vector<int>& line_of, const std::vector<std::optional<double>>& anchors,
+                        const AlignOptions& opt) {
     const bool upper = upper_labels(em.labels);
     int blank = 0, sep = -1;
     std::vector<int> index(256, -1);
@@ -185,11 +186,16 @@ std::vector<Word> align(const Emissions& em, const std::vector<std::string>& wor
     }
     std::vector<int> cls{blank};
     std::vector<uint8_t> filler{1};  // intro singing that isn't in the lyrics
+    std::vector<uint8_t> wild{0};    // a '*' state: must be passed through, never skipped
     std::vector<int> first(words.size(), -1), last(words.size(), -1);
     for (size_t i = 0; i < words.size(); i++) {
-        std::vector<int> tk;
-        const std::string& w = words[i];
+        std::vector<int> tk;  // -1: a sound the romaniser couldn't spell (a blank state that may take any singing)
+        const std::string& w = letters[i];
         for (size_t k = 0; k < w.size(); k++) {
+            if (w[k] == '*') {
+                tk.push_back(-1);
+                continue;
+            }
             unsigned char c = (unsigned char)w[k];
             if (c == 0xE2 && k + 2 < w.size() && (unsigned char)w[k + 1] == 0x80 &&
                 ((unsigned char)w[k + 2] == 0x99 || (unsigned char)w[k + 2] == 0x98)) {  // curly apostrophes
@@ -205,22 +211,32 @@ std::vector<Word> align(const Emissions& em, const std::vector<std::string>& wor
         if (opt.word_sep && sep >= 0 && cls.size() > 1) {
             cls.push_back(sep);
             filler.push_back(0);
+            wild.push_back(0);
             cls.push_back(blank);
             filler.push_back(new_line);
+            wild.push_back(0);
         }
         first[i] = (int)cls.size();
         for (int c : tk) {
+            if (c < 0) {
+                cls.push_back(blank);
+                filler.push_back(1);
+                wild.push_back(1);
+                continue;
+            }
             cls.push_back(c);
             filler.push_back(0);
+            wild.push_back(0);
             cls.push_back(blank);
             filler.push_back(0);
+            wild.push_back(0);
         }
-        last[i] = (int)cls.size() - 2;
+        last[i] = std::max(first[i], (int)cls.size() - 2);
     }
     filler.back() = 1;  // outro
     const size_t S = cls.size();
     std::vector<uint8_t> can_skip(S, 0);
-    for (size_t s = 2; s < S; s++) can_skip[s] = cls[s] != blank && cls[s] != cls[s - 2];
+    for (size_t s = 2; s < S; s++) can_skip[s] = cls[s] != blank && cls[s] != cls[s - 2] && !wild[s - 1];
     std::vector<double> anchor_s(S, -1.0);
     std::vector<char> seen(anchors.size(), 0);
     for (size_t i = 0; i < words.size(); i++) {

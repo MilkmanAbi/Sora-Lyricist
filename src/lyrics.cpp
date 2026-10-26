@@ -1,5 +1,7 @@
 #include "lyrics.h"
 
+#include "roman.h"
+
 #include <algorithm>
 #include <regex>
 #include <sstream>
@@ -17,7 +19,8 @@ static std::string trim(const std::string& s) {
 
 Lyrics load_lyrics(const fs::path& p) {
     Lyrics L;
-    std::string text = read_text(p);
+    std::string text = utf8_text(read_text(p));
+    L.japanese = has_kana(text);
     const bool lrc = p.extension() == ".lrc";
     static const std::regex tag(R"(\[(\d+):(\d+(?:\.\d+)?)\])"), any_tag(R"(\[[^\]]*\])");
     struct Row {
@@ -59,10 +62,9 @@ Lyrics load_lyrics(const fs::path& p) {
         std::string t = r.text;
         for (char& c : t)
             if (c == '(' || c == ')' || c == '[' || c == ']') c = ' ';
-        std::stringstream ws(t);
-        std::string w;
-        while (ws >> w) {
+        for (auto& w : split_units(t, L.japanese)) {
             L.words.push_back(w);
+            L.letters.push_back(align_letters(w, L.japanese));
             L.line_of.push_back(li);
         }
     }

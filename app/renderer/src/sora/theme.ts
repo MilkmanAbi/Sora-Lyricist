@@ -39,6 +39,12 @@ export const themeFromLook = (look: Look, accent: string): Theme => ({
 // the look the shared layers (title strip fonts, sizes) read, recoloured by the theme
 export const themedLook = (look: Look, th: Theme): Look => ({ ...look, ink: th.ink, dim: th.dim, accent: th.accent });
 
+// scripts written without spaces (Japanese, Chinese, Thai): their words sit flush against each other
+const SPACELESS = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}\p{Script=Thai}、-〿！-･]/u;
+export const spacelessStart = (s: string) => SPACELESS.test(s.trimStart().charAt(0));
+export const spacelessEnd = (s: string) => SPACELESS.test(s.trimEnd().slice(-1));
+export const hasSpaceless = (data: EditData) => data.tracks.some((t) => t.words.some((w) => SPACELESS.test(w.text)));
+
 // WCAG contrast ratio of two "#rrggbb" colours (1..21)
 const lum = (hex: string) => {
   const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));

@@ -43,6 +43,8 @@ foreach ($n in 'htdemucs_core', 'w2v_large_int8', 'beat_this') {
 foreach ($f in 'htdemucs_core.onnx', 'beat_this.onnx', 'w2v_large_fp16.onnx', 'w2v_large_fp16.json') {
     Copy-Item -Force "$Models\$f" "$Eng\models\"
 }
+# romanisation tables for lyrics in any script (tools\gen_lang_data.py)
+foreach ($f in 'roman.tsv', 'ja_kanwa.tsv') { Copy-Item -Force "$Models\$f" "$Eng\models\" }
 $ff = (Get-Command ffmpeg -ErrorAction Stop).Source
 $ffReal = (Get-Item $ff).Target; if (-not $ffReal) { $ffReal = $ff }
 Copy-Item -Force $ffReal "$Eng\ffmpeg.exe"

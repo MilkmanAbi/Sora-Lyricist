@@ -59,7 +59,7 @@ most one reset per network, ever. Don't force `--device dml` on a weak iGPU.
 | 1 | **`mtn analyze`**: decode → vocal separation (htdemucs) → beats (Beat This!) → word alignment (wav2vec2 + CTC) → vocal onsets. Writes the same `song.json` as `tools/analyze_song.py`, so `make.py`, `build_edit.py` and the Remotion renderer use it unchanged (`make.py --engine native`). On a 4-minute song it takes **151 s, against 614 s for the Python pipeline (~4×)**. Re-analysing with a cached separation takes **6 s**, and the lyric timing is more accurate (below). | **done** |
 | 2 | Port `build_edit.py` + `pick_short.py` (layout, short-window picking: plain logic) | next |
 | 3 | Native renderer (Direct2D/D3D11 compositing + Quick Sync H.264 encode) to replace Remotion/Node | planned |
-| 4 | The Sora app: window, tagger, lyric picker, self-contained Inno Setup installer (`app\`, `installer\`) | **done** (v0.3.0; themes + own backgrounds v0.4.0) |
+| 4 | The Sora app: window, tagger, lyric picker, self-contained Inno Setup installer (`app\`, `installer\`) | **done** (v0.3.0; themes + own backgrounds v0.4.0; lyrics in any language v0.5.0) |
 
 Where the time goes on a 252 s song (i7-1065G7 + Iris Plus): the iGPU separates 44 chunks at ~3.1 s each, which takes
 ~140 s. Meanwhile the CPU tracks beats (11 s) and aligns each finished 24 s window of vocals (13 windows, INT8), so
@@ -77,9 +77,11 @@ A window to drop songs into: it checks their tags, finds and times their lyrics,
 2. **Tags** for each song: *Keep the file's tags* or *Use my own* (title, artist, album, cover image). The
    tags are used for the lyrics search, the video's title strip and the finished files' metadata, with the cover as
    embedded album art.
-3. **Lyrics** are looked up as soon as a song is added. Pick *Local* (LRCLIB, timed), *Web* (Genius, edited words),
-   *Both* (Genius words on LRCLIB timing, the default) or *My own* (paste plain lines or a synced .lrc). The
-   chosen version is previewed with its timestamps, along with the lines where Genius corrected LRCLIB.
+3. **Lyrics** are looked up as soon as a song is added, on five sites at once (below). Pick the recommended version
+   (the best words on the best timing), any one site's own, or *My own* (paste plain lines or a synced .lrc). The
+   chosen version is previewed with its timestamps, along with the lines where the words site corrected the timed
+   one. Lyrics in Japanese, Chinese, Korean, Cyrillic, Indic scripts and more are timed through their romanisation
+   and can be shown as written or romanised.
 4. **Look**: a video theme. *Original* is Music Tool's own look in a colour you pick. The **Classic** themes are Darker,
    Polarized (Solarized), Monokai, Gruvbox, Dracula, Nord, Catppuccin and Tokyo Night. The **Moods** are Ocean,
    Sakura, Sky, Forest, Sunset, Lavender and Melon. A theme recolours the sleeve, title strip and record, and puts a
@@ -120,45 +122,106 @@ Build the app: `build.bat` (engine), `build.bat gui` (window), `installer\assemb
 
 ## Lyrics from the web
 
-Without `--lrc` / `--lyrics`, `mtn analyze` finds the lyrics itself; `mtn lyrics SONG.mp3` does just that step:
+Without `--lrc` / `--lyrics`, `mtn analyze` finds the lyrics itself; `mtn lyrics SONG.mp3` does just that step. Five
+sites are asked at once:
+
+| site | gives | best for |
+|---|---|---|
+| [LRCLIB](https://lrclib.net) | synced lines | everything (community-made) |
+| [NetEase Cloud Music](https://music.163.com) | synced lines | Chinese, Japanese, Korean, and plenty of Western songs |
+| [Bugs](https://music.bugs.co.kr) | synced lines | Korean |
+| [Genius](https://genius.com) | carefully edited words and line breaks, no timing | most languages |
+| [lyrics.ovh](https://lyrics.ovh) | plain words | English (needs the artist) |
 
 ```
-Lyrics for Die_With_A_Smile.mp3 (4:12)
-  song title [Die With A Smile]:
-  artist (helps find the right song) [Lady Gaga x Bruno Mars]:
+Lyrics for Albireo.mp3 (3:27)
+  LRCLIB:    "Albireo" by Rokudenashi (3:27), 52 lines, timed
+  NetEase:   empty lyrics on NetEase
+  Bugs:      "アルビレオ / Albireo" by ロクデナシ (Rokudenashi), 49 lines, timed
+  Genius:    "アルビレオ (Albireo)" by ロクデナシ (Rokudenashi), 49 lines
+  lyrics.ovh: not on lyrics.ovh
+  lyrics in Japanese: timed letter by letter through their romanisation
 
-  [1] local  LRCLIB: "Die With A Smile" by Lady Gaga X Bruno Mars (4:12), 37 lines, synced
-  [2] web    Genius: "Die With A Smile" by Lady Gaga, 50 lines (edited words, no timing)
-  [3] both   Genius words on LRCLIB timing: 37 lines matched (3 with different words), 0 only on Genius, ...
-         Genius "And our love's the only war worth fighting for"
-         LRCLIB "And our love's the only one worth fighting for"
-
-Which lyrics? 1 = local, 2 = web, 3 = both [3]:
-Save lyrics to [...\lyrics\Die_With_A_Smile.lrc]:
+  [1] Genius words on LRCLIB timing  49 lines matched (0 with different words), 0 only on Genius, 0 only on LRCLIB
+  [2] LRCLIB                          "Albireo" by Rokudenashi (3:27), 52 lines, timed
+  [3] Bugs                            "アルビレオ / Albireo" by ロクデナシ, 49 lines, timed
+  [4] Genius                          "アルビレオ (Albireo)" by ロクデナシ, 49 lines, words only
+Which lyrics? [1]:
 ```
 
-- **Search.** The title and artist come from the file's tags, or failing that its name. Genius's search is literal
-  ("Lady Gaga **x** Bruno Mars" finds nothing), so the query is simplified step by step until a hit fits. LRCLIB
-  lists several versions of most songs, and the one whose **length matches the file** is used. Without an artist the
-  title has to match closely, and the prompt asks you to check it's the right song.
-- **both** aligns the two line by line (1:1, 2:1 and 1:2 matches, because Genius breaks lines differently). Matched
-  lines take Genius's words and LRCLIB's timestamp. Genius-only lines are aligned untimed: the .lrc keeps them without
-  a stamp, which mtn reads but the Python tool skips. Repeats that Genius wrote only once come from LRCLIB.
-  Bracketed ad-libs that Genius adds and LRCLIB doesn't have are dropped, e.g. "Make me your radio (Yeah, ha)". They
-  are backing vocals, and placing them dragged the lead line's timing.
-- **Namesakes.** If fewer than half the lines match, the two are different songs (*Fireworks*: Drake on Genius,
-  DAOKO on LRCLIB). Then the one whose length fits the file wins and "both" is not offered.
+- **Search.** The title and artist come from the file's tags, or failing that its name. Titles are compared across
+  scripts: a file called "Haru no Kaze" finds 春の風, because both sides are compared through their romanisation.
+  Genius's search is literal ("Lady Gaga **x** Bruno Mars" finds nothing), so the query is simplified step by step
+  until a hit fits. The timed sites list several versions of most songs, and the one whose **length matches the file**
+  is used. Without an artist the title has to match closely, and the prompt asks you to check it's the right song.
+- **Same song?** Every site's answer is compared line by line with every other's. The answer most others agree with
+  is the reference, and answers that share less than half their lines with it are namesakes and are left out
+  (*봄날*: NetEase offered a different song of that name, LRCLIB and Bugs had BTS's). Japanese and Chinese lines are
+  compared character by character.
+- **Best version** (the default): the best words site (Genius, else lyrics.ovh) on the best timed site (the one whose
+  length fits the file; LRCLIB, then NetEase, then Bugs). The two are aligned line by line (1:1, 2:1 and 1:2 matches,
+  because Genius breaks lines differently). Matched lines take the edited words and the timed site's timestamp.
+  Lines only the words site has are aligned untimed: the .lrc keeps them without a stamp, which mtn reads but the
+  Python tool skips. Repeats the words site wrote only once come from the timed site. Bracketed ad-libs it adds and
+  the timed site doesn't have are dropped, e.g. "Make me your radio (Yeah, ha)". They are backing vocals, and
+  placing them dragged the lead line's timing.
+- **Clean-up.** The credits NetEase puts on top as timed lines ("作词 : Ayase") and its "pure music" placeholder for
+  instrumentals are dropped.
 - **Lyrics-fit check.** After aligning, mtn checks that the lyrics match the singing. Mean letter confidence was
-  0.24-0.66 for correct lyrics and 0.06 for a namesake's. Below 0.15 it warns, and `song.json` keeps `lyrics_fit`.
-- `--yes` takes the defaults without asking (both, saved next to the output), as do piped or scheduled runs.
-  Other flags: `--lyrics-source local|web|both`, `--save-lyrics PATH`, `--title`, `--artist`. LRCLIB answers 503
-  under load, so requests retry after 1/3/7/15 s.
-- Genius's terms don't allow scraping. This is for personal lyric videos; keep it out of anything public.
+  0.24-0.66 for correct lyrics (0.20-0.33 for romanised Japanese) and 0.06 for a namesake's. Below 0.15 it warns,
+  and `song.json` keeps `lyrics_fit`.
+- `--yes` takes the defaults without asking (the best version, saved next to the output), as do piped or scheduled
+  runs. Other flags: `--lyrics-source best|lrclib|netease|bugs|genius|ovh` (the old `local` / `web` / `both` still
+  work), `--save-lyrics PATH`, `--title`, `--artist`. Sites that answer 429/5xx are retried after 1/3/7/15 s.
+- Some of these sites' terms don't allow automated access (Genius forbids scraping). Uta-Net was tried and left out:
+  it blocks automated clients. This is for personal lyric videos; keep it out of anything public.
 
-What it changes (8 songs from the music folder, local vs both, same audio): the timing quality is the same (letter
-confidence 0.42 vs 0.42, squashed words 27% vs 27%). The gain is **correct words on screen**: Genius fixed "keep **it**
-stuck" → "keep **me** stuck", "yikky yeah" → "ye-yeah" and "hearts" → "heart's" (Stereo Hearts), and "the only **one**
-worth fighting for" → "the only **war**" (Die With A Smile).
+What the words site changes (8 songs from the music folder, LRCLIB alone vs Genius words on LRCLIB timing, same
+audio): the timing quality is the same (letter confidence 0.42 vs 0.42, squashed words 27% vs 27%). The gain is
+**correct words on screen**: Genius fixed "keep **it** stuck" → "keep **me** stuck", "yikky yeah" → "ye-yeah" and
+"hearts" → "heart's" (Stereo Hearts), and "the only **one** worth fighting for" → "the only **war**" (Die With A
+Smile).
+
+## Lyrics in any language
+
+The aligner (wav2vec2, trained on English) hears Latin letters. Until v0.4 every other letter was simply dropped, so
+Japanese, Russian or Hindi lyrics had nothing to align and their words were spread evenly between neighbours. Now
+every word is **romanised for the aligner while the video shows it as written** (`src/roman.cpp`):
+
+| script | romanised by |
+|---|---|
+| accented Latin (é ñ ü ß), Greek, Cyrillic, Arabic, Hebrew, Thai, Chinese (pinyin) | Unidecode's tables (`models\roman.tsv`) |
+| kana | Hepburn, with small kana (きゃ kya), っ (doubled consonant) and ー (long vowel) |
+| kanji in Japanese lyrics | pykakasi's dictionary, longest match (`models\ja_kanwa.tsv`): 春の風 → haru no kaze |
+| Hangul | Revised Romanisation from the syllable's parts, with liaison (한국어 → hangugeo) |
+| Devanagari, Bengali, Gurmukhi, Gujarati, Tamil, Telugu, Kannada, Malayalam | table letters + the inherent "a" (नमस्ते → namaste) |
+
+A letter said twice in the romanisation is listened for once (maataram → mataram): in CTC two equal letters need a
+blank frame between them, which the English model hardly gives a long vowel. Plain ASCII words are untouched, so
+English timing is bit for bit what it was.
+
+**Spaceless scripts** (Japanese, Chinese, Thai) are cut into word-sized units so the karaoke lights up a few characters
+at a time instead of a whole line. Japanese: a kanji/katakana run with its trailing hiragana, with long kana stretches
+broken after particles (ひとつに|なれない, 溶けて|ゆくように). Chinese: two characters. The video sets these units flush,
+in Windows' Japanese/Chinese/Korean/Indic UI fonts (the look's own fonts are Latin-only).
+
+**Show romanised.** For lyrics that aren't in Latin letters the app offers *Show as written* or *Show romanised*
+(`mtn analyze --show roman`); the timing is the same either way. `mtn romanize TEXT|FILE` prints the units, the
+aligner's letters and the readable Latin for each line.
+
+Measured (`tools/bench_lang.py`, `tools/bench_lines.py`):
+
+| songs | lyrics given | before | now |
+|---|---|---|---|
+| 3 Japanese songs from the library (Albireo, Haru no Kaze, Toki no Uta) | plain text, no stamps | lines 65-147 s off (median) | median 0.08 / 0.28 / 0.30 s; 96 / 68 / 70% of lines within 0.5 s of LRCLIB's stamps |
+| JamendoLyrics German (3 songs) | plain text | 52 ms mean word error | 50 ms |
+| JamendoLyrics Spanish (3 songs) | plain text | 63 ms | 63 ms |
+| JamendoLyrics French (3 songs) | plain text | 421 ms (one song's outliers; median 67) | 422 ms |
+
+Latin-script languages already timed well (the old code dropped only the accented letters); the gain is everywhere
+else. The Japanese errors are against community line stamps, which run a little early and vary, so they measure "the
+line is in the right place" rather than milliseconds. Nirvana Shatakam (Sanskrit, Devanagari) aligns with confidence
+0.30. A multilingual aligner (MMS) would add ~300 MB to the installer; with these numbers it isn't needed yet.
 
 ## Layout
 
@@ -195,6 +258,18 @@ Models are a one-time export, done at build time (`export-venv` = torch, demucs,
 
 ```
 export-venv\Scripts\python tools\export_models.py %MTN_HOME%\models
+```
+
+The romanisation tables too (a venv with `unidecode` and `pykakasi`):
+
+```
+roman-venv\Scripts\python tools\gen_lang_data.py %MTN_HOME%\models     # roman.tsv, ja_kanwa.tsv
+```
+
+Lyrics outside English (music-tool venv):
+```
+python tools\bench_lang.py <jamendolyrics> <work> --system old=mtn.exe --system new=mtn_dev.exe   # FR / DE / ES words
+python tools\bench_lines.py <work> --song song.mp3=song.lrc --system new=mtn_dev.exe            # line starts vs an .lrc
 ```
 
 ## Design

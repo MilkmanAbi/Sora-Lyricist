@@ -5,7 +5,7 @@ import { AbsoluteFill, interpolate } from "remotion";
 import { Look } from "../looks";
 import { vinylLayout } from "../layers/Vinyl";
 import { Track, Word } from "../types";
-import { alpha, SoraData, Theme } from "./theme";
+import { alpha, SoraData, spacelessEnd, spacelessStart, Theme } from "./theme";
 
 const EXIT_FRAMES = 5;
 const HL_IN = 0.08; // s: highlight fade-in at the word's start
@@ -16,7 +16,14 @@ type Region = { left: number; width: number; top: number };
 const applyCase = (s: string, mode: Look["caseMode"]) =>
   mode === "upper" ? s.toUpperCase() : mode === "lower" ? s.toLowerCase() : s;
 
-const isEmphasis = (w: Word) => w.end - w.start > 0.6 && w.text.length > 2;
+// long held words switch to the accent face, as in Music Tool; not in Japanese / Chinese, where the fallback CJK font
+// would just flip between weights mid-line
+// the look's fonts have Latin letters only: Japanese, Chinese, Korean and Indic lyrics come from Windows' UI fonts, one
+// family per script (left to itself, Chrome takes kanji and kana from different fonts, in different weights)
+const withFallback = (family: string) =>
+  `${family}, "Yu Gothic UI", "Yu Gothic", "Meiryo", "Microsoft YaHei UI", "Malgun Gothic", "Nirmala UI", "Leelawadee UI", sans-serif`;
+
+const isEmphasis = (w: Word) => w.end - w.start > 0.6 && w.text.length > 2 && !spacelessEnd(w.text);
 
 const WordView: React.FC<{
   word: Word;
@@ -28,7 +35,8 @@ const WordView: React.FC<{
   accent: string;
   fontSize: number;
   overVideo: boolean;
-}> = ({ word, t, fps, data, look, th, accent, fontSize, overVideo }) => {
+  glue: boolean; // flush against the next word (Japanese / Chinese)
+}> = ({ word, t, fps, data, look, th, accent, fontSize, overVideo, glue }) => {
   const lead = data.timing.lead_ms / 1000;
   const fade = Math.max(data.timing.fade_frames, 1) / fps;
   const shownAt = word.start - lead;
@@ -51,12 +59,12 @@ const WordView: React.FC<{
       style={{
         position: "relative",
         display: "inline-block",
-        marginRight: fontSize * 0.28,
+        marginRight: glue ? 0 : fontSize * 0.28,
         opacity: k * upcoming,
         filter: `blur(${(1 - k) * 6}px)`,
         transform: `translateY(${(1 - k) * fontSize * 0.12}px) scale(${hit})`,
         color,
-        fontFamily: emphasis ? look.fontAccent : look.fontMain,
+        fontFamily: withFallback(emphasis ? look.fontAccent : look.fontMain),
         fontWeight: emphasis ? 400 : look.weightMain,
         fontSize: emphasis ? fontSize * 1.1 : fontSize,
         letterSpacing: emphasis ? "-0.01em" : "-0.02em",
@@ -108,18 +116,21 @@ const TrackView: React.FC<{
   const blockH = lineH * data.timing.max_lines_per_screen;
   const screen = track.screens.find((s) => t >= s.start && t < s.end);
   if (!screen) return null;
+  // Japanese / Chinese units of a line join without a gap
+  const glued = (line: number[], k: number) =>
+    k + 1 < line.length && spacelessEnd(track.words[line[k]].text) && spacelessStart(track.words[line[k + 1]].text);
   const widest = Math.max(
     ...screen.lines.map((line) =>
-      line.reduce((sum, wi) => {
+      line.reduce((sum, wi, k) => {
         const w = track.words[wi];
         const emphasis = isEmphasis(w);
         const size = emphasis ? fontSize * 1.1 : fontSize;
         return (
           sum +
-          size * 0.28 +
+          (glued(line, k) ? 0 : size * 0.28) +
           measureText({
             text: applyCase(w.text, look.caseMode),
-            fontFamily: emphasis ? look.fontAccent : look.fontMain,
+            fontFamily: withFallback(emphasis ? look.fontAccent : look.fontMain),
             fontSize: size,
             fontWeight: String(emphasis ? 400 : look.weightMain),
             letterSpacing: `${(emphasis ? -0.01 : -0.02) * size}px`,
@@ -152,7 +163,7 @@ const TrackView: React.FC<{
     >
       {screen.lines.map((line, li) => (
         <div key={li} style={{ height: lineH, lineHeight: `${lineH}px`, whiteSpace: "nowrap" }}>
-          {line.map((wi) => (
+          {line.map((wi, k) => (
             <WordView
               key={wi}
               word={track.words[wi]}
@@ -164,6 +175,7 @@ const TrackView: React.FC<{
               accent={accent}
               fontSize={fontSize}
               overVideo={overVideo}
+              glue={glued(line, k)}
             />
           ))}
         </div>

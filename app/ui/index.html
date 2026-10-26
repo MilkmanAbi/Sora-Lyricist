@@ -71,6 +71,14 @@
         </div>
         <div id="l-status" class="muted small"></div>
         <div id="l-options" class="options"></div>
+        <div id="l-missing" class="muted small missing" hidden></div>
+        <div id="l-show" class="show-row" hidden>
+          <span id="l-script" class="muted small"></span>
+          <div class="seg" role="radiogroup">
+            <label><input type="radio" name="lshow" value="original"><span>Show as written</span></label>
+            <label><input type="radio" name="lshow" value="roman"><span>Show romanised</span></label>
+          </div>
+        </div>
         <textarea id="l-mine" hidden spellcheck="false"
           placeholder="Paste the lyrics, one line per sung line. Synced [mm:ss.xx] lines are used as timing hints."></textarea>
         <div id="l-diff" class="diff" hidden></div>

@@ -15,6 +15,10 @@ MODELS (engine\models\)
 - wav2vec 2.0 Large (LV-60k, fine-tuned on LibriSpeech 960h; Meta / fairseq, via torchaudio) - MIT
 - Beat This! (CPJKU, final0 checkpoint) - MIT - https://github.com/CPJKU/beat_this
   Sora's INT8 / ONNX versions of these were converted with NNCF / PyTorch; they carry the originals' terms.
+- roman.tsv: transliteration tables from Unidecode (Tomaz Solc, after Sean M. Burke's Text::Unidecode) - GNU GPL
+  v2 or later - https://github.com/avian2/unidecode
+- ja_kanwa.tsv: Japanese kanji readings from pykakasi's kanwa dictionary (Hiroshi Miura; after KAKASI by Hironobu
+  Takahashi) - GNU GPL v3 or later - https://codeberg.org/miurahr/pykakasi
 
 WINDOW
 - Microsoft Edge WebView2 SDK (static loader) - BSD-style licence (Microsoft)
@@ -30,5 +34,7 @@ VIDEO PIPELINE (python\, node\, tool\)
 - The lyric-video layout and renderer come from Music Tool (tool\), by its authors.
 
 LYRICS
-- Lyrics are looked up on LRCLIB (https://lrclib.net) and Genius (https://genius.com). Lyrics belong to their
-  songwriters and publishers. Genius' terms of service do not allow scraping; the web lookup is for personal use.
+- Lyrics are looked up on LRCLIB (https://lrclib.net), NetEase Cloud Music (https://music.163.com), Bugs
+  (https://music.bugs.co.kr), Genius (https://genius.com) and lyrics.ovh (https://lyrics.ovh). Lyrics belong to
+  their songwriters and publishers. Some of these sites' terms do not allow automated access (Genius forbids
+  scraping); the web lookup is for personal use.

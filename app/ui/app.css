@@ -172,6 +172,9 @@ input[type=color] { width: 40px; height: 26px; border: 1px solid var(--line); bo
 .opt .name { font-weight: 600; }
 .opt .name em { font-style: normal; font-weight: 500; color: var(--accent); margin-left: 6px; font-size: 12px; }
 .opt .meta { grid-column: 2; font-size: 12.5px; color: var(--muted); }
+.missing { margin-top: 8px; }
+.show-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
+.show-row .seg { margin-bottom: 0; }
 textarea#l-mine { width: 100%; min-height: 160px; margin-top: 10px; resize: vertical; font-family: inherit; }
 .preview {
   margin: 10px 0 0; max-height: 260px; overflow: auto; padding: 10px 12px;

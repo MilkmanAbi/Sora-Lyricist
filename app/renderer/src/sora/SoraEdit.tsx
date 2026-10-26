@@ -1,12 +1,13 @@
 // Sora's composition: the Music Tool edit, optionally recoloured by a theme and/or over the user's own clip.
-// With neither, it is exactly Music Tool's LyricEdit.
+// With neither, it is exactly Music Tool's LyricEdit (unless the lyrics are Japanese / Chinese, whose words must sit
+// flush: then the same look comes through Sora's lyrics layer).
 import { AbsoluteFill, Html5Audio, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import { LyricEdit } from "../LyricEdit";
 import { LOOKS } from "../looks";
 import { LyricEditProps } from "../types";
 import { SoraLyrics } from "./SoraLyrics";
 import { ThemedVinyl } from "./ThemedVinyl";
-import { SoraData, themedLook, themeFromLook } from "./theme";
+import { hasSpaceless, SoraData, themedLook, themeFromLook } from "./theme";
 import { UserVideo } from "./UserVideo";
 
 export const SoraEdit: React.FC<LyricEditProps> = (props) => {
@@ -14,7 +15,7 @@ export const SoraEdit: React.FC<LyricEditProps> = (props) => {
   const { fps } = useVideoConfig();
   const data = props.data as SoraData | undefined;
   if (!data) return null;
-  if (!data.theme && !data.background) return <LyricEdit {...props} />;
+  if (!data.theme && !data.background && !hasSpaceless(data)) return <LyricEdit {...props} />;
 
   const base = LOOKS[data.look] ?? LOOKS.vinyl;
   const th = data.theme ?? themeFromLook(base, data.accent ?? base.accent);

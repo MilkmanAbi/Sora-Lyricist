@@ -4,7 +4,7 @@
 ; headless Chrome - nothing has to be installed by hand.
 ;   build.bat && build.bat gui && powershell -File installer\assemble_app.ps1
 ;   "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\sora.iss
-#define AppVer "0.4.0"
+#define AppVer "0.5.0"
 #define AppDir GetEnv("USERPROFILE") + "\music-native\app"
 #define Downloads GetEnv("USERPROFILE") + "\music-native\downloads"
 

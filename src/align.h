@@ -56,7 +56,10 @@ struct AlignOptions {
     bool word_sep = false;   // put the model's '|' between words, as WhisperX does
 };
 
-std::vector<Word> align(const Emissions& em, const std::vector<std::string>& words, const std::vector<int>& line_of,
-                        const std::vector<std::optional<double>>& anchors, const AlignOptions& opt);
+// words: as shown (song.json); letters: what to listen for per word (roman.h align_letters: a-z, apostrophes, and
+// '*' for a sound the tables can't spell, which may take any singing)
+std::vector<Word> align(const Emissions& em, const std::vector<std::string>& words, const std::vector<std::string>& letters,
+                        const std::vector<int>& line_of, const std::vector<std::optional<double>>& anchors,
+                        const AlignOptions& opt);
 
 }  // namespace mt
